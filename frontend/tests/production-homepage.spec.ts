@@ -48,3 +48,10 @@ test('production demo stays unavailable and preview makes no external requests',
   expect(external).toEqual([]);
   expect((await request.get('/marketplace')).status()).toBe(404);
 });
+
+
+test('removed MeetSafe route returns 404 and navigation has no demo link', async ({page, request}) => {
+  expect((await request.get('/meetsafe')).status()).toBe(404);
+  await page.goto('/');
+  await expect(page.getByRole('link', {name: /MeetSafe/i})).toHaveCount(0);
+});

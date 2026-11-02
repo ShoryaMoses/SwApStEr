@@ -525,8 +525,8 @@ def test_sale_listing_still_requires_pickup_and_availability(clients, field):
     assert clients[0].post('/marketplace/listings', json=body).status_code == 422
 
 
-@pytest.mark.parametrize('maximum,minimum,expected_agreement', [('950','900',True), ('900','900',True), ('800','900',False), ('1000','999.99',True)])
-def test_purchase_mock_converges_honestly_within_budget_without_rental_terms(clients, maximum, minimum, expected_agreement):
+@pytest.mark.parametrize('maximum,minimum,expected_agreement', [('950','900',True), ('900','900',False), ('800','900',False), ('1000','999.99',False)])
+def test_purchase_mock_bargains_without_forcing_boundary_agreements_or_rental_terms(clients, maximum, minimum, expected_agreement):
     listing = create(clients[1], type='Buy', price='1000', minimum=minimum)
     body = preferences(listing, target='500', maximum=maximum)
     body.pop('rental_days')
@@ -543,6 +543,9 @@ def test_purchase_mock_converges_honestly_within_budget_without_rental_terms(cli
         assert not item['error'], item
         assert_no_constraints(item)
         for message in item['messages']:
+            if message['action'] == 'REJECT':
+                assert message['terms'] is None
+                continue
             assert 'rental_days' not in message['terms']
             assert 'return_date' not in message['terms']
             assert message['terms']['transaction'] == 'purchase'
@@ -767,3 +770,22 @@ def test_owner_listing_status_distinguishes_confirmation_from_withdrawal(clients
         assert 'status' not in snapshot
         assert stored(service.LISTING, id) == snapshot
     limiter.clear()
+
+
+def test_new_account_mock_policy_is_versioned_and_budget_is_pinned(clients, monkeypatch):
+    monkeypatch.setenv('MAX_NEGOTIATION_TURNS', '8')
+    listing = create(clients[1], type='Buy', price='85', minimum='50')
+    item = start(clients[0], listing, target='50', maximum='80')
+    state = stored(service.NEGOTIATION, item['id'])
+    assert state['mock_policy'] == 'independent_v1' and state['turn_budget'] == 8
+    assert 'mock_policy' not in item and 'turn_budget' not in item
+    monkeypatch.setenv('MAX_NEGOTIATION_TURNS', '2')
+    for _ in range(8):
+        if item['status'] != 'Negotiating': break
+        response = clients[0].post(f"/marketplace/negotiations/{item['id']}/advance", json={'version':item['version']})
+        assert response.status_code == 200
+        item = response.json()
+    assert item['status'] == 'Agreement proposed' and item['turn_limit'] == 8
+    assert item['messages'][1]['action'] == 'COUNTER'
+    assert not any(item['approvals'].values())
+    assert_no_constraints(item)

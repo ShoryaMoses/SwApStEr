@@ -97,12 +97,13 @@ def advance(n, *, listing=None, persist=None, project=None, listing_projection=N
     persist = persist or (lambda value: save('negotiation',value,value['id']))
     project = project or public
     listing_projection = listing_projection or public_listing
+    budget = n.get('turn_budget', turn_limit()) if n.get('mock_policy') == 'independent_v1' else turn_limit()
     if n['status']=='Agreement proposed':
         n['status']='Awaiting approvals'
         n['version']+=1
         return persist(n)
     if n['status']!='Negotiating': return n
-    if n['turn']>=turn_limit():
+    if n['turn']>=budget:
         n.update(status='No agreement',reason='No agreement — maximum negotiation turns reached.')
         n['version']+=1
         return persist(n)
@@ -127,7 +128,9 @@ def advance(n, *, listing=None, persist=None, project=None, listing_projection=N
     ctx=(buyer_agent.context(p,listing_projection(l),n['messages'],n['offer'],suggested) if role=='buyer'
          else seller_agent.context(l,listing_projection(l),n['messages'],n['offer'],n['offer'] or suggested))
     ctx['principal']={'id':n[role+'_id'],'display_name':project(n)[role]}
-    if mock_convergence and n['provider']=='mock':
+    if n.get('mock_policy') == 'independent_v1' and n['provider']=='mock':
+        ctx.update(policy_version='independent_v1', turn_budget=budget, turn_index=n['turn'])
+    elif mock_convergence and n['provider']=='mock':
         ctx['concession_rounds']=max(1,turn_limit()//2-1)
     provider=MockProvider() if n['provider']=='mock' else OllamaProvider()
     try: action=provider.decide(ctx)
@@ -193,7 +196,7 @@ def advance(n, *, listing=None, persist=None, project=None, listing_projection=N
                  public_price=t['price'] if action.action!='REJECT' else None)
     if stalled:
         record_event(n,'constraint_violation',role='coordinator',action='DECIDE',result='rejected',reason='stalled')
-    if n['turn']>=turn_limit() and n['status']=='Negotiating':
+    if n['turn']>=budget and n['status']=='Negotiating':
         n.update(status='No agreement',reason='No agreement — incompatible price constraints.' if Decimal(p['maximum'])<Decimal(l['minimum']) else 'No agreement — maximum negotiation turns reached.')
         record_event(n,'constraint_violation',role='coordinator',action='DECIDE',result='rejected',reason='turn_limit')
     n['version']+=1

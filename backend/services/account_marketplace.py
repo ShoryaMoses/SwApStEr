@@ -65,7 +65,7 @@ def negotiation_view(item):
     fields = ('id', 'listing_id', 'status', 'provider', 'turn', 'version', 'created_at', 'updated_at',
               'buyer_id', 'seller_id', 'rejected_by', 'rejected_at', 'cancelled_by', 'cancelled_at', 'reason')
     result = {key: deepcopy(item[key]) for key in fields if key in item}
-    result.update(turn_limit=coordinator.turn_limit(), buyer='Buyer', seller='Seller', item=listing_view(item['item']),
+    result.update(turn_limit=item.get('turn_budget', coordinator.turn_limit()), buyer='Buyer', seller='Seller', item=listing_view(item['item']),
                   offer=visible_terms(item.get('offer')), agreement=visible_terms(item.get('agreement')),
                   approvals={item[role+'_id']: item['approvals'].get(item[role+'_id']) is True for role in ('buyer', 'seller')},
                   messages=[{**{key: message[key] for key in ('role', 'action', 'text', 'timestamp')},
@@ -250,6 +250,7 @@ def start_negotiation(body, actor):
             'preferences': preferences, 'provider': body.provider, 'status': 'Negotiating', 'messages': [],
             'offer': None, 'agreement': None, 'approvals': {actor: False, listing['seller_id']: False},
             'turn': 0, 'version': 0, 'error': None, 'created_at': now(), 'updated_at': now(),
+            **({'mock_policy': 'independent_v1', 'turn_budget': coordinator.turn_limit()} if body.provider == 'mock' else {}),
         })
         return negotiation_view(item)
 

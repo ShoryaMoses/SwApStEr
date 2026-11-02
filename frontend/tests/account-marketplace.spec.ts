@@ -86,7 +86,8 @@ for(const type of ['Buy','Rent'] as const){test(`${type} agents progress automat
  await expect.poll(()=>sent.length).toBeGreaterThan(paused);
  await buyer.getByRole('button',{name:'Pause automatic negotiation',exact:true}).click();await expect(buyer.getByRole('button',{name:'Resume automatic negotiation',exact:true})).toBeEnabled();
  await buyer.reload(); // URL retains only the public record ID; reload reads server state before resuming.
- await expect(buyer.getByRole('button',{name:'Prepare human review',exact:true})).toBeEnabled();
+ // Strategic bargaining may use all eight paced turns; allow the complete run.
+ await expect(buyer.getByRole('button',{name:'Prepare human review',exact:true})).toBeEnabled({timeout:15000});
  expect(new Set(sent).size).toBe(sent.length);expect(maxInFlight).toBe(1);expect(sent.length).toBeLessThanOrEqual(8);
  await expect(buyer.getByRole('button',{name:'Advance one AI turn',exact:true})).toHaveCount(0);
  await expect(buyer.locator('main')).toContainText('Agreement proposed');await expect(buyer.locator('main')).not.toContainText('Confirmed — both people approved');

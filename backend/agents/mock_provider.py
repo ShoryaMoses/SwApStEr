@@ -3,6 +3,9 @@ from datetime import datetime
 from backend.models.schemas import Action
 class MockProvider:
     def decide(self, c):
+        if c.get('policy_version') == 'independent_v1':
+            from backend.agents.strategic_mock import decide
+            return decide(c)
         own, last = c['private'], c.get('last_offer')
         n = c['own_turn']
         buyer = c['role']=='buyer'
