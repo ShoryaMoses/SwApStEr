@@ -727,3 +727,43 @@ def test_every_production_marketplace_route_fails_closed_before_storage(clients,
         no_storage.assert_not_called()
     finally:
         limiter.clear()
+
+
+def test_owner_listing_status_distinguishes_confirmation_from_withdrawal(clients, monkeypatch):
+    from backend.beta import limiter
+    monkeypatch.setenv('BETA_ACCESS_ENABLED', 'true')
+    monkeypatch.setenv('BETA_ALLOWED_USER_IDS', ','.join(USERS))
+    limiter.clear()
+    buyer, seller, outsider = clients
+    listing, proposal = pending(buyer, seller)
+    available_listing = create(seller, title='Still available')
+    withdrawn = create(seller, title='Manually withdrawn')
+    first = buyer.post(f"/marketplace/negotiations/{proposal['id']}/approve",
+                       json={'version': proposal['version'], 'decision': 'approve'}).json()
+    # An AI proposal and one human approval are not a completed deal.
+    assert seller.get(f"/marketplace/listings/{listing['id']}/manage").json()['status'] == 'Available'
+    final = seller.post(f"/marketplace/negotiations/{proposal['id']}/approve",
+                        json={'version': first['version'], 'decision': 'approve'})
+    assert final.status_code == 200 and final.json()['status'] == 'Confirmed'
+    assert seller.delete(f"/marketplace/listings/{withdrawn['id']}?version=0").status_code == 204
+    before = {id: stored(service.LISTING, id) for id in (listing['id'], withdrawn['id'], available_listing['id'])}
+    rows = {item['id']: item for item in seller.get(f"/marketplace/listings/mine?include_deleted=true&after={listing['id']-1}").json()}
+    assert rows[listing['id']]['status'] == 'Deal Confirmed'
+    assert rows[withdrawn['id']]['status'] == 'Withdrawn'
+    assert rows[available_listing['id']]['status'] == 'Available'
+    assert rows[listing['id']]['deleted'] and rows[withdrawn['id']]['deleted']
+    # Correct even on a page that does not include the confirmed listing.
+    page = seller.get(f"/marketplace/listings/mine?include_deleted=true&after={listing['id']}&limit=1").json()
+    assert page[0]['id'] == available_listing['id'] and page[0]['status'] == 'Available'
+    assert seller.get(f"/marketplace/listings/{listing['id']}/manage").json()['status'] == 'Deal Confirmed'
+    assert outsider.get(f"/marketplace/listings/{listing['id']}/manage").status_code == 403
+    assert listing['id'] not in [x['id'] for x in buyer.get('/marketplace/listings').json()]
+    assert buyer.post('/marketplace/negotiations', json=preferences(listing)).status_code == 404
+    public = buyer.get(f"/marketplace/listings/{available_listing['id']}").json()
+    assert 'status' not in public
+    assert_no_constraints(public)
+    # Existing records contain no new status field and reads do not rewrite them.
+    for id, snapshot in before.items():
+        assert 'status' not in snapshot
+        assert stored(service.LISTING, id) == snapshot
+    limiter.clear()

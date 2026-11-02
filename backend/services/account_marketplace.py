@@ -39,13 +39,14 @@ def value(record):
     return dict(deepcopy(record.data), id=record.id)
 
 
-def listing_view(item, *, owner=False):
+def listing_view(item, *, owner=False, confirmed=False):
     result = {key: deepcopy(item[key]) for key in LISTING_FIELDS if key in item}
     result['seller'] = 'Marketplace seller'
     result['windows'] = [{key: window[key] for key in ('start', 'end')} for window in item.get('windows', [])]
     result['housing'] = {key: deepcopy(item['housing'][key]) for key in HOUSING_FIELDS if key in item['housing']} if item.get('housing') else None
     if owner:
-        result.update(minimum=item['minimum'], seller_id=item['seller_id'], deleted=item['deleted'])
+        result.update(minimum=item['minimum'], seller_id=item['seller_id'], deleted=item['deleted'],
+                      status='Deal Confirmed' if confirmed else 'Withdrawn' if item['deleted'] else 'Available')
     return result
 
 
@@ -146,6 +147,19 @@ def insert(db, kind, data):
     return value(record)
 
 
+def confirmed_listing_ids(db, actor, ids):
+    # Read-only projection of existing deals; do not infer a sale from deletion.
+    # Scope both the owner and page of listings, without loading private preferences.
+    if not actor or not ids:
+        return set()
+    return set(db.scalars(select(Record.data['listing_id'].as_integer()).where(
+        Record.kind == NEGOTIATION,
+        Record.data['seller_id'].as_string() == actor,
+        Record.data['listing_id'].as_integer().in_(ids),
+        Record.data['status'].as_string() == 'Confirmed',
+    )))
+
+
 def browse(*, actor=None, after=0, limit=50, include_deleted=False):
     with Session() as db:
         statement = select(Record).where(Record.kind == LISTING, Record.id > after)
@@ -153,7 +167,9 @@ def browse(*, actor=None, after=0, limit=50, include_deleted=False):
             statement = statement.where(Record.data['seller_id'].as_string() == actor)
         if not include_deleted:
             statement = statement.where(Record.data['deleted'].as_boolean().is_(False))
-        return [listing_view(value(record), owner=actor is not None) for record in db.scalars(statement.order_by(Record.id).limit(limit))]
+        items = [value(record) for record in db.scalars(statement.order_by(Record.id).limit(limit))]
+        confirmed = confirmed_listing_ids(db, actor, [item['id'] for item in items])
+        return [listing_view(item, owner=actor is not None, confirmed=item['id'] in confirmed) for item in items]
 
 
 def get_listing(id, *, actor=None):
@@ -163,7 +179,7 @@ def get_listing(id, *, actor=None):
             owned(item, actor)
         else:
             available(item)
-        return listing_view(item, owner=actor is not None)
+        return listing_view(item, owner=actor is not None, confirmed=id in confirmed_listing_ids(db, actor, [id]))
 
 
 def create_listing(body, actor):

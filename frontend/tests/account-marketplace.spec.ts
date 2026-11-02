@@ -97,3 +97,17 @@ for(const type of ['Buy','Rent'] as const){test(`${type} agents progress automat
 test('automatic incompatible mock run ends without agreement and offers no approval',async({page,browser})=>{
  await login(page);await create(page,'Non overlapping automatic deal');const context=await browser.newContext();try{await bridge(context);const buyer=await context.newPage();await login(buyer,'no-agreement@example.invalid');await buyer.getByRole('button',{name:'View Non overlapping automatic deal',exact:true}).click();await buyer.getByRole('button',{name:'Start negotiation',exact:true}).click();await buyer.getByLabel('Private maximum ($)',{exact:true}).fill('10');await buyer.getByLabel('Target price ($)',{exact:true}).fill('5');await buyer.getByLabel('Pickup location',{exact:true}).fill('Public library');await buyer.getByRole('button',{name:'Start account negotiation',exact:true}).click();await expect(buyer.getByRole('status').filter({hasText:'Deal status:'})).toContainText('No agreement',{timeout:15000});await expect(buyer.getByRole('button',{name:'Approve as buyer',exact:true})).toHaveCount(0);await expect(buyer.getByRole('button',{name:'Start a new negotiation',exact:true})).toBeEnabled();await expect(buyer.getByLabel('Private minimum ($)',{exact:true})).toHaveCount(0);await expect(buyer.getByLabel('Private maximum ($)',{exact:true})).toHaveCount(0);await expect(buyer.getByRole('button',{name:'Pause automatic negotiation',exact:true})).toHaveCount(0)}finally{await context.close()}
 });
+
+test('My listings distinguishes available and manually withdrawn listings after refresh',async({page})=>{
+ await login(page);await create(page,'Manual withdrawal status');
+ await page.getByRole('button',{name:'My listings',exact:true}).click();
+ const card=page.locator('article').filter({has:page.getByRole('heading',{name:'Manual withdrawal status',exact:true})});
+ await expect(card).toContainText('$35 · Available');
+ page.once('dialog',dialog=>dialog.accept());
+ await card.getByRole('button',{name:'Withdraw Manual withdrawal status',exact:true}).click();
+ await expect(card).toContainText('$35 · Withdrawn');
+ await page.reload();await page.getByRole('button',{name:'My listings',exact:true}).click();
+ await expect(card).toContainText('$35 · Withdrawn');
+ await expect(card).not.toContainText('Deal Confirmed');
+ await expect(card.getByRole('button',{name:'Edit Manual withdrawal status',exact:true})).toHaveCount(0);
+});

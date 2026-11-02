@@ -5,7 +5,7 @@ export {AccountApiError};
 export type Window = {start:string; end:string};
 export type ListingInput = {title:string;description:string;category:string;course:string;condition:string;price:string;minimum:string;type:'Rent'|'Buy';rental_days?:number;windows:Window[];available_until:string|null;restrictions:string;housing:Housing|null};
 export type Listing = Omit<ListingInput,'minimum'> & {id:number;version:number;seller:string;rental_days:number};
-export type OwnListing = Listing & {minimum:string;seller_id:string;deleted:boolean};
+export type OwnListing = Listing & {minimum:string;seller_id:string;deleted:boolean;status?:'Available'|'Withdrawn'|'Deal Confirmed'};
 export type Terms = {price:string;location:string;pickup?:string;return_date?:string;rental_days?:number;lease_start?:string;lease_end?:string;transaction?:string};
 export type Negotiation = {id:number;listing_id:number;item:Listing;version:number;status:string;provider:'mock'|'ollama';turn:number;turn_limit?:number;buyer_id:string;seller_id:string;approvals:Record<string,boolean>;messages:{role:string;action:string;text:string;timestamp:string;terms:Terms|null}[];offer:Terms|null;agreement:Terms|null;reason?:string;error?:string|null};
 export type Preferences = {listing_id:number;target?:string;maximum:string;rental_days?:number;windows?:Window[];deadline?:string;location?:string;provider:'mock'|'ollama';housing?:{desired_move_in:string;desired_move_out:string;preferred_location:string;furnished:boolean|null;utilities_included:boolean|null;move_in_flex_days:number;requirements:string}};
