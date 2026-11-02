@@ -73,7 +73,7 @@ def limited(key,limit):
 def beta_access(request:Request,credentials=Depends(bearer)):
     if not beta_enabled():return None
     try:allowed=invited_ids()
-    except (ValueError,TypeError,AttributeError):raise HTTPException(503,'Beta access is unavailable.') from None
+    except (ValueError,TypeError,AttributeError):raise HTTPException(503,'Beta access is unavailable.',headers={'Cache-Control':'private, no-store'}) from None
     user=authenticated_user(credentials)
     if user.id not in allowed:
         raise HTTPException(403,'Beta access is by invitation.',headers={'Cache-Control':'private, no-store'})

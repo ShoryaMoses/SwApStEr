@@ -10,7 +10,8 @@ from backend.beta import DeploymentGuard, cors_origins, deployed
 from backend.deployment import validate
 if deployed():
     validate()
-app = FastAPI(title="SwApStEr")
+from backend.startup_security import lifespan
+app = FastAPI(title="SwApStEr", lifespan=lifespan)
 app.add_middleware(DeploymentGuard)
 app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_credentials=True, allow_methods=['GET','POST','PUT','DELETE','OPTIONS'], allow_headers=['Authorization','Content-Type'])
 if initialize_local_database():

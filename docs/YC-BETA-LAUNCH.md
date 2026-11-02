@@ -1,5 +1,9 @@
 # YC application beta launch — Step 5A
 
+For the post-deployment source review and current verification limits, see
+[the November 2 security review](YC-BETA-SECURITY-REVIEW.md). The original Step 5A
+findings below describe that earlier preparation step.
+
 Planning deadline: November 2, 2026 (America/Phoenix). This is a preparation audit,
 not a deployment or evidence of traction. Work is on main, uncommitted. No hosted
 resources, Auth settings, database grants, migrations or actual env files changed.
@@ -354,3 +358,63 @@ local environment files, then tests desktop/mobile marketplace cards, navigation
 the informational Business preview, and the disabled demo page. It uses port 3103,
 does not start a backend or connect to a database, and cleans up its server and
 temporary build. Business backend routes remain disabled in production.
+
+## Temporary startup database security check (Render Free, no Shell)
+
+This check is **off by default**. It runs only when APP_ENV=production and
+RUN_STARTUP_DB_SECURITY_CHECK=true (exact lowercase value). It runs once per
+application process startup, including restarts/cold starts while enabled, never
+per request. Keep one worker. Remove the opt-in after collecting its output.
+
+1. Review and explicitly approve committing/pushing/deploying the new source first.
+   This change is local until you do so; saving an environment variable cannot add
+   code to an older deployed build. Check linked Git auto-deploy settings before
+   any push. No commit, push, or deployment was performed by this implementation.
+2. In Render Dashboard, open **swapster-api → Environment**. Add
+   **RUN_STARTUP_DB_SECURITY_CHECK=true**. Confirm the existing
+   **ENABLE_ACCOUNT_MARKETPLACE=false**, **BETA_ACCESS_ENABLED=true**, and
+   **AI_PROVIDER=mock** remain unchanged. Do not edit DATABASE_URL or credentials.
+3. If the new code is not deployed, use **Save only**, then perform an explicitly
+   approved manual deployment of the reviewed commit. If that code is already
+   deployed, use **Save and deploy** to apply the flag to the existing build.
+   Save only does not activate a variable; Restart service reuses the currently
+   deployed environment and is not a substitute for applying saved changes.
+4. Open **Logs**, select the new startup's time range, and search for
+   **STARTUP_DB_SECURITY**. Look at runtime logs, not only build logs. Allow about
+   30 seconds for the check, with up to five additional seconds for cleanup.
+   The normal API starts even if this optional check fails.
+5. Read the JSON summary. Success is status=completed and connection=ok.
+   Confirm migration=0001_records, schema=baseline observed, rls_enabled=true.
+   runtime_owner and runtime_bypasses_rls describe the credential actually used by
+   that service process, without revealing its username. table_crud contains
+   SELECT/INSERT/UPDATE/DELETE booleans for current_user, anon, authenticated.
+   runtime_crud_and_sequence_grants includes the existing diagnostic's schema and
+   sequence prerequisites; it is not proof of row access.
+6. review_required=true means further review is necessary, not necessarily a
+   connection failure. It includes the underlying diagnostic's default grants,
+   column/sequence permissions and schema findings, plus owner/bypass warnings.
+   This summary deliberately omits detailed ACLs and all names/credentials.
+   status=failed or timeout means connectivity/security is unverified: do not
+   infer that a successful /health response proves database readiness.
+7. After recording only the sanitized summary, set
+   **RUN_STARTUP_DB_SECURITY_CHECK=false** (or remove it), then **Save and deploy**.
+   Confirm the next startup has no new STARTUP_DB_SECURITY line, /health works,
+   and marketplace remains disabled. Keep the old log line's timestamp distinct
+   from subsequent deployments.
+
+The child reuses backend.commands.database_check --connect --security with the
+service's inherited environment. It performs read-only catalog/schema queries,
+sets a five-second statement timeout, rolls back and disposes its connection.
+The parent kills an over-time child. No records, grants, migrations or credentials
+are changed. Child stderr and raw exception text are never forwarded. Parent
+output permits only fixed enum values and booleans. Failure is logged at ERROR;
+completed checks needing review are WARNING. No diagnostic HTTP endpoint exists.
+
+An owner/bypass role means FastAPI remains the user-authorization boundary.
+Even a clean summary does not prove safe RPC/view exposure, row-level isolation,
+or PostgreSQL concurrent finalization. This flag never enables the marketplace.
+
+Dashboard references:
+[environment variables](https://render.com/docs/configure-environment-variables),
+[deploy behavior](https://render.com/docs/deploys),
+[runtime logs](https://render.com/docs/logging).

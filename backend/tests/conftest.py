@@ -14,3 +14,6 @@ os.environ['SUPABASE_AUTH_LEGACY_HS256']='false'
 os.environ['BETA_ACCESS_ENABLED']='false'
 os.environ['BETA_ALLOWED_USER_IDS']=''
 os.environ['CORS_ALLOWED_ORIGINS']='http://localhost:3000'
+
+# Never inherit an operator's opt-in hosted startup diagnostic in local tests.
+os.environ['RUN_STARTUP_DB_SECURITY_CHECK']='false'

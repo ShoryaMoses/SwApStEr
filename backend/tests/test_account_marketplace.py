@@ -681,3 +681,49 @@ def test_production_rejects_ollama_without_inference(clients,monkeypatch):
     monkeypatch.setenv('APP_ENV','production');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS));limiter.clear()
     assert clients[0].post('/marketplace/negotiations',json=preferences(listing,provider='ollama')).status_code==503
     limiter.clear()
+
+
+@pytest.mark.parametrize('mode,expected_status', [
+    ('disabled', 404),
+    ('anonymous', 401),
+    ('uninvited', 403),
+    ('invalid_allowlist', 503),
+])
+def test_every_production_marketplace_route_fails_closed_before_storage(clients, monkeypatch, mode, expected_status):
+    """The production gate covers reads and mutations, even with a valid JWT."""
+    from backend.beta import limiter
+    monkeypatch.setenv('APP_ENV', 'production')
+    monkeypatch.setenv('BETA_ACCESS_ENABLED', 'true')
+    monkeypatch.setenv('BETA_ALLOWED_USER_IDS', USERS[0])
+    if mode == 'disabled':
+        monkeypatch.setenv('ENABLE_ACCOUNT_MARKETPLACE', 'false')
+    if mode == 'invalid_allowlist':
+        monkeypatch.setenv('BETA_ALLOWED_USER_IDS', 'not-a-uuid')
+    limiter.clear()
+    no_storage = Mock(side_effect=AssertionError('Rejected request reached marketplace storage'))
+    monkeypatch.setattr(service, 'Session', no_storage)
+    routes = [
+        ('GET', '/listings', None),
+        ('GET', '/listings/mine', None),
+        ('GET', '/listings/1', None),
+        ('GET', '/listings/1/manage', None),
+        ('POST', '/listings', listing_body()),
+        ('PUT', '/listings/1', dict(listing_body(), version=0)),
+        ('DELETE', '/listings/1?version=0', None),
+        ('GET', '/negotiations', None),
+        ('GET', '/negotiations/1', None),
+        ('POST', '/negotiations', preferences(dict(listing_body(), id=1))),
+        ('POST', '/negotiations/1/advance', {'version': 0}),
+        ('POST', '/negotiations/1/approve', {'version': 0, 'decision': 'approve'}),
+        ('POST', '/negotiations/1/cancel', {'version': 0}),
+    ]
+    headers = {} if mode == 'anonymous' else dict(clients[1 if mode == 'uninvited' else 0].headers)
+    try:
+        with TestClient(app, headers=headers) as client:
+            for method, path, body in routes:
+                response = client.request(method, '/marketplace' + path, json=body)
+                assert response.status_code == expected_status, (mode, method, path, response.status_code)
+                assert response.headers['cache-control'] == 'private, no-store'
+        no_storage.assert_not_called()
+    finally:
+        limiter.clear()
