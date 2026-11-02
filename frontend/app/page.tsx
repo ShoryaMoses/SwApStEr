@@ -31,9 +31,10 @@ export default function HomePage() {
           </p>
         </section>
 
+        {process.env.NODE_ENV==='production'&&<p className="mx-auto mb-8 max-w-2xl text-center">Invited beta · deterministic mock agents · no live AI inference or payments.</p>}
         <section className="grid gap-6 md:grid-cols-2">
           <Link
-            href="/marketplace"
+            href="/marketplace/account"
             className="rounded-3xl border bg-white p-10 shadow-sm transition hover:shadow-xl"
           >
             <ShoppingBag size={36} className="mb-6 text-blue-600" />
@@ -51,7 +52,7 @@ export default function HomePage() {
             </div>
           </Link>
 
-          <Link
+          {process.env.NODE_ENV!=='production'&&<Link
             href="/b2b"
             className="rounded-3xl border bg-white p-10 shadow-sm transition hover:shadow-xl"
           >
@@ -67,7 +68,7 @@ export default function HomePage() {
             <div className="mt-8 flex items-center gap-2 font-semibold text-violet-600">
               Explore Business <ArrowRight size={20} />
             </div>
-          </Link>
+          </Link>}
         </section>
       </div>
     </main>

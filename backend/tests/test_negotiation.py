@@ -156,9 +156,9 @@ def test_judge_opt_in_and_production(c,monkeypatch):
     monkeypatch.setenv('ENABLE_JUDGE_MODE','true')
     assert c.get(f"/demo/judge/{n['id']}").json()['buyer_private']['maximum']=='25'
     monkeypatch.setenv('APP_ENV','production')
-    assert c.get(f"/demo/judge/{n['id']}").status_code==403
-    assert c.post('/demo/session',json={'student':'student-a'}).status_code==403
-    assert c.get('/negotiations').status_code==403
+    assert c.get(f"/demo/judge/{n['id']}").status_code==404
+    assert c.post('/demo/session',json={'student':'student-a'}).status_code==404
+    assert c.get('/negotiations').status_code==404
 
 def test_ollama_repairs_own_price_violation(monkeypatch):
     import json

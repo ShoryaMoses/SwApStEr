@@ -14,6 +14,7 @@ from sqlalchemy.exc import OperationalError
 from backend.models.database import Session, Record
 from backend.agents import negotiation_coordinator as coordinator
 from backend.services.audit import record_event
+from backend.beta import deployed, beta_enabled
 
 LISTING = 'account_listing'
 NEGOTIATION = 'account_negotiation'
@@ -206,6 +207,8 @@ def change_listing(id, actor, version, body=None):
 
 
 def start_negotiation(body, actor):
+    if deployed() and body.provider!='mock':
+        fail(503,'Live AI is unavailable in this beta. Choose the deterministic mock provider.')
     preferences = body.model_dump(mode='json')
     if not body.housing and body.deadline <= datetime.now(timezone.utc):
         fail(422, 'The completion deadline must be in the future.')
@@ -214,6 +217,8 @@ def start_negotiation(body, actor):
     with writing() as db:
         listing = row(db, LISTING, body.listing_id, lock=True)
         available(listing)
+        if beta_enabled() and db.scalar(select(Record.id).where(Record.kind==NEGOTIATION,Record.data['listing_id'].as_integer()==listing['id'],Record.data['status'].as_string()=='Confirmed').limit(1)) is not None:
+            fail(409,'This listing already has a confirmed agreement.')
         if listing['seller_id'] == actor:
             fail(403, 'You cannot negotiate on your own listing.')
         if bool(listing.get('housing')) != bool(body.housing):
@@ -263,6 +268,8 @@ def advance_negotiation(id, actor, version):
         expected(item, version)
         if item['status'] not in ('Negotiating', 'Agreement proposed'):
             fail(409, 'This negotiation is not accepting further offers.')
+        if deployed() and item['provider']!='mock':
+            fail(503,'Live AI is unavailable in this beta.')
         listing = row(db, LISTING, item['listing_id'])
         available(listing)
         if listing['version'] != item['listing_version']:
@@ -288,6 +295,8 @@ def human_decision(id, actor, version, decision):
     with Session() as db:
         snapshot = row(db, NEGOTIATION, id)
         participant(snapshot, actor)
+    if snapshot['status']!='Awaiting approvals':
+        fail(409,'This proposal is closed.')
     with writing() as db:
         listing = active_listing(db, snapshot)
         item = row(db, NEGOTIATION, id)
@@ -312,6 +321,18 @@ def human_decision(id, actor, version, decision):
             changed['approvals'][actor] = True
             record_event(changed, 'approval_recorded', role=role, action='APPROVE', result='valid')
             if all(changed['approvals'].values()):
+                if beta_enabled():
+                    if db.scalar(select(Record.id).where(Record.kind==NEGOTIATION,Record.id!=id,Record.data['listing_id'].as_integer()==listing['id'],Record.data['status'].as_string()=='Confirmed').limit(1)) is not None:
+                        fail(409,'This listing already has a confirmed agreement.')
+                    # The listing lock serializes all competing final approvals.
+                    # Both humans have approved; archive this single-use beta listing.
+                    archived=dict(deepcopy(listing),deleted=True,deleted_at=now())
+                    compare_and_swap(db,LISTING,listing,archived,listing['seller_id'])
+                    others=db.scalars(select(Record).where(Record.kind==NEGOTIATION,Record.id!=id,Record.data['listing_id'].as_integer()==listing['id'],Record.data['status'].as_string().in_(ACTIVE)))
+                    for record in others:
+                        previous=value(record)
+                        cancelled=dict(deepcopy(previous),status='Cancelled',cancelled_by=listing['seller_id'],cancelled_at=now(),reason='Listing closed after another agreement.')
+                        compare_and_swap(db,NEGOTIATION,previous,cancelled,listing['seller_id'])
                 changed['status'] = 'Confirmed'
                 record_event(changed, 'agreement_finalized', role='coordinator', action='FINALIZE', result='valid', public_price=agreement['price'])
         return negotiation_view(compare_and_swap(db, NEGOTIATION, item, changed, actor))

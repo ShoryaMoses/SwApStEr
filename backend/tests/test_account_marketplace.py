@@ -600,3 +600,84 @@ def test_purchase_ollama_schema_omits_duration_without_changing_pricing_strategy
     assert 'rental_days' not in schema['properties'] and 'rental_days' not in schema['required']
     assert schema['properties']['transaction'] == {'const':'purchase'}
     assert result.json()['offer']['transaction'] == 'purchase'
+
+
+def test_beta_final_approval_archives_listing_and_cancels_competing_deals(clients,monkeypatch):
+    a,b,c=clients
+    listing,item=pending(a,b)
+    competing=start(c,listing)
+    monkeypatch.setenv('BETA_ACCESS_ENABLED','true')
+    monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS))
+    from backend.beta import limiter
+    limiter.clear()
+    first=a.post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':item['version'],'decision':'approve'}).json()
+    final=b.post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':first['version'],'decision':'approve'})
+    assert final.status_code==200 and final.json()['status']=='Confirmed'
+    assert stored(service.LISTING,listing['id'])['deleted'] is True
+    assert c.get(f"/marketplace/negotiations/{competing['id']}").json()['status']=='Cancelled'
+    assert c.post('/marketplace/negotiations',json=preferences(listing)).status_code==404
+    assert a.post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':final.json()['version'],'decision':'approve'}).status_code==409
+    limiter.clear()
+
+
+def test_beta_uses_real_verified_invites_and_revocation_fails_closed(clients,monkeypatch):
+    from backend.beta import limiter
+    monkeypatch.setenv('BETA_ACCESS_ENABLED','true');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',USERS[0])
+    limiter.clear()
+    assert clients[0].get('/marketplace/listings').status_code==200
+    assert clients[1].get('/marketplace/listings').status_code==403
+    assert clients[1].post('/marketplace/listings',json=listing_body()).status_code==403
+    monkeypatch.setenv('BETA_ALLOWED_USER_IDS','')
+    assert clients[0].get('/marketplace/listings').status_code==403
+    limiter.clear()
+
+
+def test_beta_rate_limit_creates_and_inference_are_identity_scoped(clients,monkeypatch):
+    from backend.beta import limiter
+    monkeypatch.setenv('BETA_ACCESS_ENABLED','true');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS))
+    limiter.clear()
+    for _ in range(10):assert clients[0].post('/marketplace/listings',json=listing_body()).status_code==201
+    assert clients[0].post('/marketplace/listings',json=listing_body()).status_code==429
+    assert clients[1].post('/marketplace/listings',json=listing_body()).status_code==201
+    limiter.clear()
+
+
+def test_beta_buyer_can_be_last_approver_without_owner_impersonation(clients,monkeypatch):
+    from backend.beta import limiter
+    listing,item=pending(clients[0],clients[1])
+    monkeypatch.setenv('BETA_ACCESS_ENABLED','true');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS));limiter.clear()
+    first=clients[1].post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':item['version'],'decision':'approve'}).json()
+    final=clients[0].post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':first['version'],'decision':'approve'})
+    assert final.status_code==200 and final.json()['status']=='Confirmed'
+    assert stored(service.LISTING,listing['id'])['deleted']
+    limiter.clear()
+
+
+def test_beta_competing_final_approvals_cannot_confirm_two_deals(clients,monkeypatch):
+    from backend.beta import limiter
+    listing=create(clients[1]);proposals=[]
+    for buyer in (clients[0],clients[2]):
+        item=start(buyer,listing)
+        for _ in range(10):
+            if item['status']=='Awaiting approvals':break
+            item=buyer.post(f"/marketplace/negotiations/{item['id']}/advance",json={'version':item['version']}).json()
+        assert item['status']=='Awaiting approvals'
+        item=buyer.post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':item['version'],'decision':'approve'}).json()
+        proposals.append(item)
+    monkeypatch.setenv('BETA_ACCESS_ENABLED','true');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS));limiter.clear()
+    def approve(item):
+        with TestClient(app,headers=dict(clients[1].headers)) as seller:
+            return seller.post(f"/marketplace/negotiations/{item['id']}/approve",json={'version':item['version'],'decision':'approve'})
+    with ThreadPoolExecutor(max_workers=2) as pool:responses=list(pool.map(approve,proposals))
+    assert sum(response.status_code==200 for response in responses)==1
+    assert all(response.status_code in (200,404,409) for response in responses)
+    assert sorted(stored(service.NEGOTIATION,item['id'])['status'] for item in proposals)==['Cancelled','Confirmed']
+    limiter.clear()
+
+
+def test_production_rejects_ollama_without_inference(clients,monkeypatch):
+    from backend.beta import limiter
+    listing=create(clients[1])
+    monkeypatch.setenv('APP_ENV','production');monkeypatch.setenv('BETA_ALLOWED_USER_IDS',','.join(USERS));limiter.clear()
+    assert clients[0].post('/marketplace/negotiations',json=preferences(listing,provider='ollama')).status_code==503
+    limiter.clear()

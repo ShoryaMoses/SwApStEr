@@ -6,8 +6,13 @@ from backend.models.schemas import Listing, StudentCreate
 from backend.services.students import students, student_by_id, create_student
 from backend.routes.negotiations import demo_only
 from backend.models.database import initialize_local_database
+from backend.beta import DeploymentGuard, cors_origins, deployed
+from backend.deployment import validate
+if deployed():
+    validate()
 app = FastAPI(title="SwApStEr")
-app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:3000'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(DeploymentGuard)
+app.add_middleware(CORSMiddleware, allow_origins=cors_origins(), allow_credentials=True, allow_methods=['GET','POST','PUT','DELETE','OPTIONS'], allow_headers=['Authorization','Content-Type'])
 if initialize_local_database():
     seed()
 @app.get('/health')

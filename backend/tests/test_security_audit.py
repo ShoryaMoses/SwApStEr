@@ -185,13 +185,11 @@ def test_audit_rejects_arbitrary_text_and_invalid_price_fields():
     with pytest.raises(ValueError):record_event(n,'constraint_violation',role='buyer',action='OFFER',result='rejected',reason='invalid_agent_terms',public_price='27.13')
     assert 'audit_events' not in n
 
-def test_hosted_public_demo_still_works_but_judge_cannot_expose_limits(client,monkeypatch):
+def test_hosted_demo_is_disabled_even_with_legacy_overrides(client,monkeypatch):
     n=pending(client)
     monkeypatch.setenv('APP_ENV','production');monkeypatch.setenv('PUBLIC_DEMO_MODE','true');monkeypatch.setenv('ENABLE_JUDGE_MODE','true')
-    assert client.get('/demo/session').status_code==200
-    assert client.get('/students').status_code==200
-    assert_public(client.get(f"/negotiations/{n['id']}").json())
-    assert client.get(f"/demo/judge/{n['id']}").status_code==403
+    for path in ['/demo/session','/students',f"/negotiations/{n['id']}",f"/demo/judge/{n['id']}",'/listings']:
+        assert client.get(path).status_code==404
 
 def test_audit_does_not_copy_malformed_turn_metadata():
     n={'id':123,'turn':'private context must not be copied'}

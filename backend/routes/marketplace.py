@@ -3,6 +3,7 @@ import os
 
 from fastapi import APIRouter, Depends, Query, Response
 from backend.auth import AccountUser, authenticated_user
+from backend.beta import beta_access
 from backend.models.database import engine
 from backend.models.marketplace_schemas import AccountListing, ListingUpdate, NegotiationStart, ExpectedVersion, HumanDecision
 from backend.services import account_marketplace as service
@@ -16,7 +17,7 @@ def enabled(response: Response):
         service.fail(503, 'Account marketplace requires a file-backed database.')
 
 
-router = APIRouter(prefix='/marketplace', tags=['Account marketplace'], dependencies=[Depends(enabled)])
+router = APIRouter(prefix='/marketplace', tags=['Account marketplace'], dependencies=[Depends(enabled), Depends(beta_access)])
 
 
 @router.get('/listings')

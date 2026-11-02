@@ -10,10 +10,11 @@ export type Terms = {price:string;location:string;pickup?:string;return_date?:st
 export type Negotiation = {id:number;listing_id:number;item:Listing;version:number;status:string;provider:'mock'|'ollama';turn:number;turn_limit?:number;buyer_id:string;seller_id:string;approvals:Record<string,boolean>;messages:{role:string;action:string;text:string;timestamp:string;terms:Terms|null}[];offer:Terms|null;agreement:Terms|null;reason?:string;error?:string|null};
 export type Preferences = {listing_id:number;target?:string;maximum:string;rental_days?:number;windows?:Window[];deadline?:string;location?:string;provider:'mock'|'ollama';housing?:{desired_move_in:string;desired_move_out:string;preferred_location:string;furnished:boolean|null;utilities_included:boolean|null;move_in_flex_days:number;requirements:string}};
 export function marketplace(client:SupabaseClient|null) {
+  const publicBrowsing=process.env.NODE_ENV!=='production'&&process.env.NEXT_PUBLIC_BETA_MODE!=='true';
   const call=<T>(path:string,method='GET',body?:unknown,publicRead=false)=>accountRequest<T>(client,'/marketplace'+path,{method,body:body===undefined?undefined:JSON.stringify(body)},publicRead);
   return {
-    browse:(after=0)=>call<Listing[]>('/listings?limit=50&after='+after,'GET',undefined,true),
-    listing:(id:number)=>call<Listing>('/listings/'+id,'GET',undefined,true),
+    browse:(after=0)=>call<Listing[]>('/listings?limit=50&after='+after,'GET',undefined,publicBrowsing),
+    listing:(id:number)=>call<Listing>('/listings/'+id,'GET',undefined,publicBrowsing),
     mine:(after=0)=>call<OwnListing[]>('/listings/mine?include_deleted=true&limit=50&after='+after),
     manage:(id:number)=>call<OwnListing>(`/listings/${id}/manage`),
     create:(input:ListingInput)=>call<OwnListing>('/listings','POST',input),

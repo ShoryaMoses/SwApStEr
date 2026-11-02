@@ -36,3 +36,11 @@ test('missing and expired sessions fail before protected fetch without demo fall
  const expired={auth:{getSession:async()=>({data:{session:null},error:null})}} as unknown as SupabaseClient;
  await expect(marketplace(expired).history()).rejects.toMatchObject({kind:'unauthorized'});expect(count).toBe(0);
 });
+test('beta browsing transports a token and never falls back to public demo data',async()=>{
+ const previous=process.env.NEXT_PUBLIC_BETA_MODE;process.env.NEXT_PUBLIC_BETA_MODE='true';let count=0;
+ try{global.fetch=async(_,init)=>{count++;expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer synthetic-user-access');return Response.json([])};await marketplace(client).browse();await expect(marketplace(null).browse()).rejects.toMatchObject({kind:'unauthorized'});expect(count).toBe(1)}finally{if(previous===undefined)delete process.env.NEXT_PUBLIC_BETA_MODE;else process.env.NEXT_PUBLIC_BETA_MODE=previous}
+});
+test('invitation and rate limits produce actionable safe messages',async()=>{
+ global.fetch=async()=>Response.json({detail:'Beta access is by invitation.'},{status:403});await expect(marketplace(client).mine()).rejects.toMatchObject({kind:'invite'});
+ global.fetch=async()=>Response.json({detail:'sensitive upstream error'},{status:429});await expect(marketplace(client).mine()).rejects.toMatchObject({kind:'rate'});
+});

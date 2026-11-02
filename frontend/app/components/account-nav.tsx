@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
 import {useState} from 'react';
+import {feedbackUrl} from '../../lib/feedback';
 import {useAuth} from './auth-provider';
 
 export function AccountNav() {
@@ -18,6 +19,7 @@ export function AccountNav() {
   }
   return <nav className="account-nav" aria-label="Account navigation">
     <Link href="/marketplace/account">Real marketplace</Link>
+    {feedbackUrl()&&<a href={feedbackUrl()!} target="_blank" rel="noopener noreferrer">Feedback</a>}
     {loading ? <span className="account-checking" role="status">Checking account…</span> : user ? <>
       <Link className="account-email" href="/account" title={user.email || 'Your account'}>{user.email || 'Your account'}</Link>
       <button className="account-logout" disabled={busy} onClick={signOut}>{busy ? 'Logging out…' : 'Log out'}</button>

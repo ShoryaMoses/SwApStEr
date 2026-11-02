@@ -246,7 +246,9 @@ def test_non_development_sqlite_startup_never_creates_or_seeds(tmp_path, environ
 from unittest.mock import patch
 with patch('sqlalchemy.schema.MetaData.create_all', side_effect=AssertionError('Unexpected DDL')), \\
      patch('backend.services.store.seed', side_effect=AssertionError('Unexpected demo seed')):
-    import backend.main
+    try: import backend.main
+    except ValueError: pass
+    else: raise AssertionError('Non-development SQLite must fail closed')
 '''
     subprocess.run([sys.executable, '-c', code], cwd=ROOT, env=env, check=True, capture_output=True)
     assert not path.exists()

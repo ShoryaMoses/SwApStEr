@@ -175,9 +175,9 @@ def test_hosted_accounts_disable_legacy_public_demo_override(client, keys, monke
     monkeypatch.setenv('APP_ENV', 'production')
     monkeypatch.setenv('PUBLIC_DEMO_MODE', 'true')
     assert request(client, token(keys)).status_code == 200
-    assert client.get('/students').status_code == 403
-    assert client.post('/demo/session', json={'student': 'student-a'}).status_code == 403
-    assert client.get('/negotiations').status_code == 403
+    assert client.get('/students').status_code == 404
+    assert client.post('/demo/session', json={'student': 'student-a'}).status_code == 404
+    assert client.get('/negotiations').status_code == 404
 
 
 def test_legacy_token_is_verified_by_trusted_auth_service_before_use(client, keys, monkeypatch):

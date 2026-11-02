@@ -30,7 +30,10 @@ export async function updateSession(request: NextRequest) {
   });
   // This verifies/refreshes the session. Public routes remain public in 3A.
   // It does not authorize marketplace ownership or create a demo identity.
-  await supabase.auth.getClaims();
+  try {await supabase.auth.getClaims();} catch {
+    // Account pages can explain an unavailable Auth service; backend auth stays fail-closed.
+    response.headers.set('Cache-Control','private, no-store');
+  }
   if (!response.headers.has('Cache-Control')) response.headers.set('Cache-Control', 'private, no-store');
   const vary = response.headers.get('Vary');
   if (!vary?.toLowerCase().split(',').map(value => value.trim()).includes('cookie')) response.headers.set('Vary', vary ? `${vary}, Cookie` : 'Cookie');

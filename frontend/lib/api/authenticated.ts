@@ -1,7 +1,7 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 export type AccountUser = {id: string; role: 'authenticated'};
 export class AccountApiError extends Error {
-  constructor(public kind:'unauthorized'|'forbidden'|'conflict'|'validation'|'disabled'|'missing'|'network'|'unavailable', message:string) {super(message);}
+  constructor(public kind:'unauthorized'|'invite'|'rate'|'forbidden'|'conflict'|'validation'|'disabled'|'missing'|'network'|'unavailable', message:string) {super(message);}
 }
 /** Account-only transport: no demo cookies, identity parameters, retries or storage. */
 export async function accountRequest<T>(client:SupabaseClient|null,path:string,init:RequestInit={},publicRead=false):Promise<T> {
@@ -28,9 +28,11 @@ export async function accountRequest<T>(client:SupabaseClient|null,path:string,i
       401:['unauthorized','Your session is invalid or expired. Sign in again.'],
       403:['forbidden','You do not have permission to perform this action.'],
       409:['conflict','This record changed or the action is no longer available. Refresh and review before trying again.'],
+      429:['rate','Too many requests. Wait one minute before retrying.'],
       422:['validation','Please check your fields, dates, price limits and rental duration.'],
       404:['missing','This record is unavailable or you do not have access.'],
     };
+    if(response.status===403){const body=await response.json().catch(()=>null);if(body?.detail==='Beta access is by invitation.')throw new AccountApiError('invite','Your account is waiting for a beta invitation. Ask the organizer to enable access after signup.');}
     if(response.status===404){const body=await response.json().catch(()=>null);if(body?.detail==='Account marketplace is not enabled.')throw new AccountApiError('disabled','Real marketplace is unavailable. For local testing, enable ENABLE_ACCOUNT_MARKETPLACE on the backend.');}
     const [kind,message]=errors[response.status] || ['unavailable','Account authentication or marketplace service is unavailable.'];
     throw new AccountApiError(kind,message);

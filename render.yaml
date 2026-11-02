@@ -1,0 +1,42 @@
+# Review-only blueprint. Creating a service/deploying still requires approval.
+services:
+  - type: web
+    name: swapster-beta-api
+    runtime: python
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: python -m pip install -r backend/requirements.txt -c backend/requirements.lock.txt
+    startCommand: python -m uvicorn backend.production:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log --no-proxy-headers
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.18
+      - key: APP_ENV
+        value: production
+      - key: BETA_ACCESS_ENABLED
+        value: 'true'
+      - key: ENABLE_ACCOUNT_MARKETPLACE
+        value: 'false'
+      - key: ENABLE_JUDGE_MODE
+        value: 'false'
+      - key: PUBLIC_DEMO_MODE
+        value: 'false'
+      - key: AI_PROVIDER
+        value: mock
+      - key: MAX_NEGOTIATION_TURNS
+        value: '8'
+      - key: DATABASE_POOL_MODE
+        value: session
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: BETA_ALLOWED_USER_IDS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_AUTH_LEGACY_HS256
+        value: 'false'

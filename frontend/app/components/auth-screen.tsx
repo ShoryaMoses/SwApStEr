@@ -16,7 +16,7 @@ const descriptions: Record<Mode, string> = {signup: 'Create an account with your
 export function AuthScreen({mode}: {mode: Mode}) {
   return <div className="auth-page">
     <header className="auth-header"><Link className="brand" href="/"><span className="brand-icon"><ShoppingBag size={21}/></span>SwApStEr</Link><AccountNav/></header>
-    <main className="auth-layout"><aside className="auth-intro"><div className="eyebrow"><Sparkles size={15}/> YOUR ACCOUNT. YOUR CHOICE.</div><h1>Good finds.<br/>Better connections.</h1><p>A simpler way to buy, sell, and rent, with AI that works within your limits.</p><div className="auth-promise"><LockKeyhole size={20}/><span>Your credentials stay with Supabase Auth. You decide when to make a deal.</span></div><Link href="/marketplace">Explore the local demo <ArrowRight size={16}/></Link></aside>
+    <main className="auth-layout"><aside className="auth-intro"><div className="eyebrow"><Sparkles size={15}/> YOUR ACCOUNT. YOUR CHOICE.</div><h1>Good finds.<br/>Better connections.</h1><p>A simpler way to buy, sell, and rent, with AI that works within your limits.</p><div className="auth-promise"><LockKeyhole size={20}/><span>Your credentials stay with Supabase Auth. You decide when to make a deal.</span></div><Link href={process.env.NODE_ENV==='production'?'/marketplace/account':'/marketplace'}>{process.env.NODE_ENV==='production'?'Explore the real marketplace':'Explore the local demo'} <ArrowRight size={16}/></Link></aside>
       <section className="auth-card" aria-label={titles[mode]}><h2>{titles[mode]}</h2><p className="auth-description">{descriptions[mode]}</p><Suspense fallback={<p role="status">Loading account…</p>}><AuthContent mode={mode}/></Suspense></section>
     </main><footer className="auth-footer">SwApStEr · Your terms. Your final say.</footer>
   </div>;
@@ -96,7 +96,7 @@ function AuthContent({mode}: {mode: Mode}) {
       <button className="secondary full" disabled={busy} onClick={async () => {if (!client) return; const current = ++apiGeneration.current; setBusy(true); setApiState('Checking the secure API…'); try {const verified = await getAccountUser(client); if (apiGeneration.current === current) setApiState(verified.id === user.id ? 'Secure API verified your account.' : 'The API identity does not match this session. Please log out and try again.');} catch (failure) {if (apiGeneration.current === current) setApiState((failure as Error).message);} finally {if (apiGeneration.current === current) setBusy(false);}}}>Check secure API connection</button>
       {apiState && <p className="auth-feedback" role="status">{apiState}</p>}
     </>}
-    <Link className="auth-demo-link" href="/marketplace">Continue to the separate local demo <ArrowRight size={15}/></Link>
+    {process.env.NODE_ENV!=='production'&&<Link className="auth-demo-link" href="/marketplace">Continue to the separate local demo <ArrowRight size={15}/></Link>}
   </>;
   if (mode === 'reset' && !user && !unavailable) return <><div className="auth-alert" role="alert">Your recovery session is missing or expired. Request a new recovery link.</div><Link className="primary full" href="/forgot-password">Request a recovery link</Link></>;
   return <>

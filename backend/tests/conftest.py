@@ -9,3 +9,8 @@ os.environ['APP_ENV']='development'
 os.environ['SUPABASE_URL']=''
 os.environ['SUPABASE_PUBLISHABLE_KEY']=''
 os.environ['SUPABASE_AUTH_LEGACY_HS256']='false'
+
+# Never inherit hosted beta membership or CORS settings in ordinary local tests.
+os.environ['BETA_ACCESS_ENABLED']='false'
+os.environ['BETA_ALLOWED_USER_IDS']=''
+os.environ['CORS_ALLOWED_ORIGINS']='http://localhost:3000'
