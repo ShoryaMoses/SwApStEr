@@ -17,7 +17,7 @@ export type Supplier = typeof suppliers[number];
 const minimums: Record<string, number> = {pacific: 990, horizon: 1040, meridian: 1020};
 export type Status = 'ready' | 'active' | 'paused' | 'decision' | 'proposed' | 'stopped' | 'approved' | 'rejected';
 export type Thread = {id: string; status: Status; round: number; quote: number; limit: number; totalLimit: number | null;
-  messages: {who: 'Buyer agent' | 'Supplier agent'; text: string; original?: string}[]; events: string[]};
+  messages: {who: 'Buyer agent' | 'Supplier agent'; text: string; original?: string; unitPrice?: number}[]; events: string[]};
 export type Demo = {request: Request; threads: Thread[]};
 export const money = (cents: number) => new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'}).format(cents / 100);
 export const total = (price: number, quantity: number, shipping: number) => price * quantity + shipping;
@@ -54,16 +54,36 @@ export function act(d: Demo, id: string, action: Action): Demo {
     if (action !== 'advance' || !['ready', 'active', 'paused'].includes(t.status)) return t;
     if (issues(d.request, s).length) return {...t, status: 'stopped', events: [...t.events, ...issues(d.request, s)]};
     const round = t.round + 1;
-    const quote = round === 1 ? Math.max(minimums[id], s.ask - 40) : minimums[id];
+    const acceptance = (quote: number): Thread['messages'][number] => ({
+      who: 'Buyer agent', unitPrice: quote,
+      text: `Accept ${money(quote)} USD per unit for ${d.request.quantity} units on the quoted shipping and delivery terms, subject to final human approval. No order is placed.`,
+    });
+    // A final outstanding counter remains valid after authorization. Accept its
+    // actual terms, not the new spending ceiling, without inventing another bid.
+    if (t.round >= 2 && compliant(d, t) && t.quote >= minimums[id]) {
+      return {...t, round, status: 'proposed', messages: [...t.messages, acceptance(t.quote)]};
+    }
     const ceiling = Math.min(t.limit, t.totalLimit === null ? t.limit : Math.floor((t.totalLimit - s.shipping) / d.request.quantity));
     if (ceiling <= 0) return {...t, status: 'decision', events: [...t.events, 'Shipping alone exhausts the authorized total.']};
-    // Offers never exceed authorization. No private limit is interpolated into messages.
-    const offer = Math.min(ceiling, Math.floor(quote * (d.request.strategy === 'aggressive' ? .9 : .96)));
+    const priorOffers = t.messages.filter(m => m.who === 'Buyer agent' && m.unitPrice !== undefined).map(m => m.unitPrice!);
+    const prior = priorOffers.length ? Math.max(...priorOffers) : null;
+    // First bid discounts the outstanding quote. Later bids close part of the
+    // remaining gap without retracting or repeating a previously rejected bid.
+    const candidate = prior === null
+      ? Math.floor(t.quote * (d.request.strategy === 'aggressive' ? .9 : .96))
+      : prior + Math.max(1, Math.ceil((t.quote - prior) * (d.request.strategy === 'aggressive' ? .25 : .5)));
+    const offer = Math.min(ceiling, candidate, t.quote);
+    const buyer: Thread['messages'][number] = prior === null || offer > prior
+      ? {who: 'Buyer agent', unitPrice: offer, text: `${prior === null ? 'Can you offer' : 'In response to your counter, I can offer'} ${money(offer)} USD per unit for ${d.request.quantity} units?`}
+      : {who: 'Buyer agent', text: 'Can you improve your quoted unit price with the same quantity, shipping and delivery terms?'};
+    const quote = Math.max(minimums[id], Math.min(t.quote, round === 1 ? s.ask - 40 : minimums[id]));
     const text = `Proposal: ${money(quote)} USD per unit × ${d.request.quantity}; shipping ${money(s.shipping)} USD; delivery ${s.days} days to ${d.request.destination}.`;
-    const next: Thread = {...t, round, quote, messages: [...t.messages,
-      {who: 'Buyer agent', text: `Can you offer ${money(offer)} USD per unit for ${d.request.quantity} units?`},
-      {who: 'Supplier agent', text, ...(id === 'pacific' ? {original: `报价：每件 ${money(quote)} USD，数量 ${d.request.quantity}；运费 ${money(s.shipping)} USD；交付 ${s.days} 天。`} : {})}], status: round < 2 ? 'active' : 'decision'};
-    if (round >= 2 && compliant(d, next)) next.status = 'proposed';
+    const next: Thread = {...t, round, quote, messages: [...t.messages, buyer,
+      {who: 'Supplier agent', unitPrice: quote, text, ...(id === 'pacific' ? {original: `报价：每件 ${money(quote)} USD，数量 ${d.request.quantity}；运费 ${money(s.shipping)} USD；交付 ${s.days} 天。`} : {})}], status: round < 2 ? 'active' : 'decision'};
+    if (round >= 2 && compliant(d, next)) {
+      next.status = 'proposed';
+      next.messages.push(acceptance(quote));
+    }
     return next;
   })};
 }

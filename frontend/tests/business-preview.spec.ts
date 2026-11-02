@@ -16,6 +16,7 @@ for(const width of [1280,390]) test(`Business demo decisions, comparisons and re
   await expect(page.getByText('Explicit authorization:',{exact:false})).toContainText('$10.00 → $10.40');
   await expect(page.getByRole('button',{name:'Approve Proposed Deal'})).toHaveCount(0);
   await page.getByRole('button',{name:'Advance negotiation',exact:true}).click();
+  await expect(page.getByText('Accept $10.40 USD per unit', {exact:false})).toContainText('subject to final human approval');
   await page.getByRole('button',{name:'Select China supplier'}).click();
   await page.getByRole('button',{name:'Start negotiation',exact:true}).click();
   await page.getByLabel('Show scripted Mandarin / English preview').check();
