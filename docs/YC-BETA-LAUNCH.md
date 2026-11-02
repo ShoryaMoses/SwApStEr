@@ -17,7 +17,7 @@ beta; it is not a verified live deployment or a live-LLM release.
 | Critical | Real email delivery, confirmation, reset and session persistence on the final HTTPS origin have not been tested. | Configure Supabase and test with two independent real accounts. |
 | Critical | Existing Supabase project is labeled Production; don't assume its data is disposable. | Confirm beta is allowed there, or use a separately approved beta project/clone. |
 | Fixed in source | Anonymous/non-invited access to deployed account data. | Backend requires verified token + UUID invitation for every marketplace route, including listing reads. |
-| Fixed in source | Legacy public demo reads, demo overrides and experimental routes. | All deployed backend paths except health, auth/me and account marketplace are 404; demo and B2B frontend routes are 404 in production. |
+| Fixed in source | Legacy public demo reads, demo overrides and experimental routes. | All deployed backend paths except health, auth/me and account marketplace are 404; the demo frontend is 404 in production; Business is an informational Coming Soon preview. |
 | Fixed in source | Hardcoded localhost CORS / silent deployment misconfiguration. | Exact HTTPS origins; production entrypoint validates encrypted PostgreSQL, Auth, beta gate and mock mode before serving. |
 | Fixed in source | Unbounded sensitive requests. | In-memory atomic limits and 64 KiB streamed body cap; deployment restricted to one worker/instance. |
 | Fixed in source | Two new negotiations confirming the same listing. | Beta final approval locks/archive listing and cancels other unfinished proposals atomically. Test-only SQLite concurrency passes; PostgreSQL must still be checked. |
@@ -46,8 +46,8 @@ arbitrary preview deployments access to the production beta backend.
 
 On Vercel builds (`VERCEL=1`), config validation requires valid HTTPS Supabase and
 API origins plus a public publishable key. Local builds still support the existing
-unconfigured-demo workflow. NODE_ENV=production hides demo/B2B routes and makes
-listing browsing token-authenticated. Public/static Auth/marketing screens remain
+unconfigured-demo workflow. NODE_ENV=production hides the demo route and makes
+listing browsing token-authenticated. Business is a static Coming Soon preview. Public/static Auth/marketing screens remain
 reachable so testers can sign up; private API data is protected on FastAPI.
 Review Git auto-deploy settings before any later push: this task did not change
 platform settings or approve deployment.
@@ -219,7 +219,7 @@ run destructive integration tests on the shared Production project.
    exact CORS origins, beta gate enabled, empty allowlist and marketplace flag
    **false**. Verify /health over HTTPS. No tester can read marketplace data.
 4. Configure Vercel's frontend root/env and deploy after approval. Confirm marketing,
-   signup and account pages work; `/marketplace` and `/b2b` return 404.
+   signup and account pages work; `/marketplace` returns 404; `/b2b` shows only the Coming Soon preview.
 5. Configure approved Supabase Site URL, redirects and existing SMTP. Test two
    internal operator accounts' real signup/confirmation/reset and persistence.
 6. Copy those verified UUIDs from Supabase Auth Users into Render's allowlist;
@@ -242,7 +242,7 @@ Keep credentials, token-bearing links and private limits out of screenshots/logs
 
 | Time | Check |
 | --- | --- |
-| 0–1 min | HTTPS frontend and /health; demo/B2B/API docs return 404; backend called over approved HTTPS origin. |
+| 0–1 min | HTTPS frontend and /health; demo/backend B2B/API docs return 404; frontend Business shows Coming Soon; backend called over approved HTTPS origin. |
 | 1–2 min | Fresh signup/real email confirmation/login; reload preserves session; reset link reaches the safe reset screen. |
 | 2–3 min | Uninvited test account gets waiting-for-invitation; anonymous requests get no marketplace data. |
 | 3–4 min | Seller creates a future-dated sale listing without rental days, edits own listing; buyer has no edit controls. |
@@ -345,3 +345,12 @@ PostgreSQL transaction/concurrency test, SMTP delivery or real deployed two-acco
 smoke test was run. Existing SQLite, actual environment files and all existing
 migrations retained identical checksums; no actual credential value was found in
 changed source.
+
+### Production homepage regression checks
+
+Run `.venv/bin/python frontend/tests/support/run-production-preview.py` from
+the repository root. This builds and typechecks a temporary frontend copy without
+local environment files, then tests desktop/mobile marketplace cards, navigation,
+the informational Business preview, and the disabled demo page. It uses port 3103,
+does not start a backend or connect to a database, and cleans up its server and
+temporary build. Business backend routes remain disabled in production.

@@ -52,23 +52,24 @@ export default function HomePage() {
             </div>
           </Link>
 
-          {process.env.NODE_ENV!=='production'&&<Link
+          <Link
             href="/b2b"
             className="rounded-3xl border bg-white p-10 shadow-sm transition hover:shadow-xl"
           >
-            <Globe2 size={36} className="mb-6 text-violet-600" />
+            <Globe2 size={36} className="mb-6 text-blue-600" />
 
-            <h2 className="text-3xl font-bold">B2B Procurement</h2>
+            <h2 className="text-3xl font-bold">Business Marketplace</h2>
+            <p className="mt-3 font-semibold text-blue-600">Coming Soon</p>
 
             <p className="mt-4 text-slate-600">
-              Source products internationally, compare supplier quotes,
-              and negotiate across languages using AI assistance.
+              Planned supplier matching and international AI negotiations.
+              These features are not publicly operational.
             </p>
 
-            <div className="mt-8 flex items-center gap-2 font-semibold text-violet-600">
-              Explore Business <ArrowRight size={20} />
+            <div className="mt-8 flex items-center gap-2 font-semibold text-blue-600">
+              View Business Preview <ArrowRight size={20} />
             </div>
-          </Link>}
+          </Link>
         </section>
       </div>
     </main>
