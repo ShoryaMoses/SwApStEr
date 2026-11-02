@@ -11,7 +11,7 @@ for (const width of [1280, 390]) {
     await expect(local).toHaveAttribute('href', '/marketplace/account');
     await expect(local).toContainText('Explore Marketplace');
     await expect(business).toHaveAttribute('href', '/b2b');
-    await expect(business).toContainText('Coming Soon');
+    await expect(business).toContainText('Interactive Business Preview');
     await expect(business).toContainText('not publicly operational');
     await expect(page.getByText('Invited beta · deterministic mock agents')).toBeVisible();
     const a = (await local.boundingBox())!;
@@ -27,15 +27,14 @@ for (const width of [1280, 390]) {
     await expect(nav.getByRole('link', {name: 'Log in', exact: true})).toBeVisible();
     await nav.getByRole('link', {name: 'Business', exact: true}).click();
     await expect(page).toHaveURL(/\/b2b$/);
-    await expect(page.getByRole('heading', {name: 'Business Marketplace', exact: true})).toBeVisible();
-    await expect(page.getByText('Coming Soon · Preview')).toBeVisible();
-    await expect(page.getByText('This preview is informational', {exact: false})).toBeVisible();
-    await expect(page.locator('form, input, select')).toHaveCount(0);
+    await expect(page.getByRole('heading', {name: 'Your AI Procurement Agent', exact: true})).toBeVisible();
+    await expect(page.getByText('Interactive Business Preview — Simulated suppliers and negotiations')).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Run Sample Demo'})).toBeVisible();
     await page.reload();
-    await expect(page.getByText('Coming Soon · Preview')).toBeVisible();
+    await expect(page.getByText('Interactive Business Preview — Simulated suppliers and negotiations')).toBeVisible();
     await page.getByRole('link', {name: 'Back to SwApStEr'}).click();
     await business.click();
-    await expect(page.getByText('Coming Soon · Preview')).toBeVisible();
+    await expect(page.getByText('Interactive Business Preview — Simulated suppliers and negotiations')).toBeVisible();
   });
 }
 
@@ -45,7 +44,7 @@ test('production demo stays unavailable and preview makes no external requests',
     if (new URL(req.url()).origin !== new URL(process.env.PLAYWRIGHT_BASE_URL!).origin) external.push(req.url());
   });
   await page.goto('/b2b');
-  await expect(page.getByText('Coming Soon · Preview')).toBeVisible();
+  await expect(page.getByText('Interactive Business Preview — Simulated suppliers and negotiations')).toBeVisible();
   expect(external).toEqual([]);
   expect((await request.get('/marketplace')).status()).toBe(404);
 });

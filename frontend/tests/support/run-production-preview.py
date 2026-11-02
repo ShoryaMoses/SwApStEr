@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix="swapster-production-preview-") as tempo
                     time.sleep(.5)
             else:
                 raise RuntimeError("Production preview server readiness timeout")
-        subprocess.run(["npm", "run", "test:e2e", "--", "tests/production-homepage.spec.ts"],
+        subprocess.run(["npm", "run", "test:e2e", "--", "tests/production-homepage.spec.ts", "tests/business-simulation.spec.ts", "tests/business-preview.spec.ts"],
                        cwd=target, env=env, check=True)
     finally:
         if process.poll() is None:

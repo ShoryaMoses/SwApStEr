@@ -59,11 +59,11 @@ export default function HomePage() {
             <Globe2 size={36} className="mb-6 text-blue-600" />
 
             <h2 className="text-3xl font-bold">Business Marketplace</h2>
-            <p className="mt-3 font-semibold text-blue-600">Coming Soon</p>
+            <p className="mt-3 font-semibold text-blue-600">Interactive Business Preview</p>
 
             <p className="mt-4 text-slate-600">
-              Planned supplier matching and international AI negotiations.
-              These features are not publicly operational.
+              Explore fictional suppliers and deterministic negotiations.
+              Live sourcing and supplier messaging are not publicly operational.
             </p>
 
             <div className="mt-8 flex items-center gap-2 font-semibold text-blue-600">
